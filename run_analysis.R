@@ -1,11 +1,11 @@
 ReadActData<-function(SearchTerms="mean;std",ActDir="~/Documents/CQA/gettingCleanData/UCI HAR Dataset"){
   
   ActWD<-setwd(ActDir)
-  dateDownloaded <- format(Sys.time(), "%Y%b%d")
+  dateDownloaded <- format(Sys.time(), "%Y%b%d") #for now, we assume the files are already downloaded
   
   featureLabelFile<-paste0(ActWD,"/features.txt")
   activityLabelFile<-paste0(ActWD,"/activity_labels.txt")  
-  #check these files exist - else no point in doing anything ! 
+  #check these key files exist - else no point in doing anything ! 
   if(file.exists(featureLabelFile) && 
               file.exists(activityLabelFile)){
     #once the files exist, read them in - note there are assumptions about the structure of each file ! 
@@ -29,7 +29,7 @@ ReadActData<-function(SearchTerms="mean;std",ActDir="~/Documents/CQA/gettingClea
   }else{stop("correct files not found in base directory. Check your input")}
   
   #this next section examines the names of all files in the current directory, 
-  #all which are sub-directories are kept as possible DataSets 
+  #all which are sub-directories are kept as possible DataSets in the list DSName
   fls<-dir(ActWD,recursive=FALSE)
   nDSPossible<-0
   DSName<-vector(length=1)
@@ -77,7 +77,7 @@ ReadActData<-function(SearchTerms="mean;std",ActDir="~/Documents/CQA/gettingClea
                DSName[nDS]<-possDS
                nLines<-nLines+nSubject
                tempDS<-data.frame(featureLines,subjectLines,activityLines,stringsAsFactors=FALSE)
-               DS<-rbind(DS,tempDS)
+               DS<-rbind(DS,tempDS) #this is the key line - append valid rows found onto our master list DS
                #need do a 'vlookup to translate these into names later
                                            }
                           } 
@@ -93,16 +93,20 @@ ReadActData<-function(SearchTerms="mean;std",ActDir="~/Documents/CQA/gettingClea
   #next we extract the distinct search terms - note that we are appending () so the 
   # user just needs to specify the function like mean, std etc so a string like 
   #"mean;std" will result in mean() and std() being search for "min;max" in min() and max() etc
-  
-    SearchTerms<-strsplit(SearchTerms,split=";",fixed=TRUE)
-    SearchTerms<-unlist(SearchTerms)
-    print(SearchTerms)
-  
+  #default values are mean;std - i.e. running the function without other argument results in mean() and std() values being extracted
+ 
+    SearchTerms<-strsplit(SearchTerms,split=";",fixed=TRUE) # make a list using ; as the splitting point
+    SearchTerms<-unlist(SearchTerms) #unlist to make a vector of terms 
+    print(SearchTerms) #remind user what we are looking for ! 
+ 
+  #in the following, we could probably greatly simplify by replacing the ;with a | 
+  # and therefore avoid all the complications of unlisting and so on.
   targetCols<-vector(length=0)
   nSearchTerms<-length(SearchTerms)
   for(term in SearchTerms){
     term<-paste0(term,"()")
-    targetCols<-union(targetCols,grep(term,featureLabels,fixed=TRUE))
+    targetCols<-union(targetCols,grep(term,featureLabels,fixed=TRUE)) #note fixed=TRUE means the () are searched for literally
+    #could also have escaped them as \\(\\)
   }
 
   infoLine2<-paste0("There are ", length(targetCols)," variable matching your selection ")
@@ -122,7 +126,7 @@ ReadActData<-function(SearchTerms="mean;std",ActDir="~/Documents/CQA/gettingClea
 ActNames<-merge(ActLabels,tidyData,by="Activity")[,2] #another hack ! the merge will produce all the cols otherwise
 tidyData[,length(targetCols)+2]<-ActNames #this hack overwrites the Activity numbers 
 
-  #lastly - write a table
+  #lastly - write a table - this is an interim result - in this large file will be stored ALL the records from Tidy and Test data
   tidyDataFile<-paste0(ActWD,"/tidyData.txt")
   write.table(tidyData,file=tidyDataFile,row.names=FALSE,quote=FALSE,col.names=names(tidyData))
   
@@ -130,33 +134,100 @@ tidyData[,length(targetCols)+2]<-ActNames #this hack overwrites the Activity num
   
   
 }
-# This second function depends on the previous one working and delivering a correctly formatted interim file
-#This contains the selected variables for the merged data-set in an expected order. 
+
+#This next function assumes the previous one has run successfully.
+#Simply reads in the big file with all the records
+#converts the data frame into a data-table, runs the average function by [subject, activity] combination
+# and writes back out the table
 
 ReadProcActData<-function(TargetFile="tidyData.txt",ActDir="~/Documents/CQA/gettingCleanData/UCI HAR Dataset"){
   tidyDataFile<-paste0(ActDir,"/tidyData.txt")
   tidyDataIn<-read.table(file=tidyDataFile,sep=" ",header=TRUE,quote=" ",check.names=FALSE,stringsAsFactors=FALSE)
   
   nFeatures<-length(names(tidyDataIn))-2 #assume nFeature cols and then 2 for Activity and Subject
-  td1<-data.table(tidyDataIn) #make into data-table for blazingly fast transformation ! 
+  td1<-data.table(tidyDataIn) #make into data-frame
   #the following code was from : http://stackoverflow.com/questions/14937165/using-dynamic-column-names-in-data-table?lq=1
   td2<-td1[,lapply(.SD,mean),by=list(Subject,Activity),.SDcols=1:nFeatures]
   
   tidyMeanDataFile<-paste0(ActDir,"/tidyMeanData.txt")
-  write.table(td2,file=tidyMeanDataFile,row.names=FALSE,quote=FALSE,col.names=names(td2)) #final file
-  
+  write.table(td2,file=tidyMeanDataFile,row.names=FALSE,quote=FALSE,col.names=names(td2))
   tidyMeanDataCodebook<-paste0(ActDir,"/tidyMeanDataCodebook.txt")
   
   writeLines(names(td2),tidyMeanDataCodebook,sep="\n")
   
-  return(head(td2)) # show user how the file looks.
+  return(head(td2))
 }
 
-#I ended up not using this function since running the scipt interactively is too much hassle for
-#too little reward
+#The following function makes the codebook by using reg exp to parse the original column names
+#This assumes there is already a file called 'tidyMeanDataCodebook.txt' in the active directory
 
-read_value <- function(prompt_text = "", prompt_suffix = getOption("prompt"), coerce_to = "character")
-{
-  prompt <- paste(prompt_text, prompt_suffix)
-  as(readline(prompt), coerce_to)
-} 
+makeCodeBook<-function(ActDir="~/Documents/CQA/gettingCleanData/UCI HAR Dataset"){
+  
+  ActWD<-setwd(ActDir)
+  
+  tidyMeanDataCodebook<-paste0(ActDir,"/tidyMeanDataCodebook.txt")
+  
+  
+  ColHeadings<-readLines(tidyMeanDataCodebook)
+  
+  featureLabels<-ColHeadings[-c(1,2)]
+  
+  head(featureLabels)
+  
+  
+  Ordinal<-regexpr("^[0-9]{1,3}",featureLabels)
+  Ordinal<-regmatches(featureLabels,Ordinal)
+  
+  Axis<-regexpr("[XYZ]|.$",featureLabels)
+  Axis<-regmatches(featureLabels,Axis)
+  Axis<-gsub('[^XYZ]',"non-axial measurement",Axis)
+  Axis<-gsub("([XYZ])", "\\1 Axis",Axis)
+  #NB --- Note the () around the [XYZ] which allow the use of backcapture !
+  
+  TimeFreq<-regexpr("[0-9]-([tf])",featureLabels)
+  TimeFreq<-regmatches(featureLabels,TimeFreq)
+  TimeFreq<-sub("([0-9]){1,5}-","",TimeFreq)
+  TimeFreq<-sub("([tf])","\\1 domain",TimeFreq)
+  
+  AccGyro<-regexpr("(Acc)|(Gyro)",featureLabels)
+  AccGyro<-regmatches(featureLabels,AccGyro)
+  AccGyro<-sub("Acc","Accelerometer",AccGyro)
+  AccGyro<-sub("Gyro","Gyroscope",AccGyro)
+  
+  BodyGravity<-regexpr("(Body)|(Gravity)",featureLabels)
+  BodyGravity<-regmatches(featureLabels,BodyGravity)
+  
+  
+  Jerk<-grep("Jerk",featureLabels)
+  NotJerk<-grep("Jerk",featureLabels,invert=TRUE)
+  JerkNotJerk<-featureLabels
+  JerkNotJerk[Jerk]<-"derivative of linear acceleration or angular velocity"
+  JerkNotJerk[NotJerk]<-""
+  
+  Mag<-grep("Mag",featureLabels)
+  NotMag<-grep("Mag",featureLabels,invert=TRUE)
+  MagNotMag<-featureLabels
+  MagNotMag[Mag]<-"magnitude of 3-dimensional signals according to Euclidean norm"
+  MagNotMag[NotMag]<-""
+  
+  Statistic<-regexpr("-+([a-z]+)\\(\\)",featureLabels) #-std()
+  Statistic<-regmatches(featureLabels,Statistic)
+  Statistic<-sub("-([[a-z]+)\\(\\)","\\1",Statistic)
+  
+  Description<-featureLabels
+  
+  for (index in 1:length(featureLabels)){
+    Description[index]<-paste0("The scaled value of the ",Statistic[index]," statistic ",
+                               "of the ",TimeFreq[index]," signal, from the ",
+                               JerkNotJerk[index],MagNotMag[index],
+                               BodyGravity[index]," component of the ",
+                               AccGyro[index], " measurement on the ",
+                               Axis[index],". This was originally column number ",
+                               Ordinal[index])
+  }
+  
+  Codebook<-cbind(ColHeadings,c("","",Description))
+  
+  tidyMeanDataCodebook2<-paste0(ActDir,"/tidyMeanDataCodebook2.txt")
+  write.table(Codebook,file=tidyMeanDataCodebook2,row.names=FALSE,quote=FALSE,col.names=FALSE)
+}
