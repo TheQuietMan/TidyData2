@@ -18,12 +18,10 @@ How to run
 with a valid data set in a given directory (MyDir) and sub-directories (e.g. MyDir/test and MyDir/train), issue the following commands at the R console
 
 >source(<github address url>run_analysis.R) # caveat : I have not been able to run the script from a github repo. At your own risk you may download the script and place in a convenient location on your local machine !
+
+Once you have successfully sourced the script, successively run the following functions
+
 >ReadActData(ActDir=MyDir) #first function - must run this first ! 
--- where MyDir is a text string pointing to a directory on your computer 
--- you must have Read/Write privileges to MyDir
--- MyDir must contain activity_labels.txt and features.txt files with data formatted as per original source.
--- optionally pass a variable SearchTerms - a string containing one or more statistical terms from the list 
---  provided in the original documentation, with ; as separator. Note that () is appended to the string terms meaning 'mean()' is matched but meanFreq() and similar terms are not.
 
 After running check in MyDir for a correctly formmatted working file. 
 then type  : 
@@ -31,7 +29,8 @@ then type  :
 
 and then check for a text file called TidyMeanData.txt in MyDir.
 
-The CodeBook found in this repository applies and includes the R command used to load the result file back into R for further processing. 
+>makeCodeBook(ActDir=MyDir) # Optional - provides some parsing to make the Codebook file more complete
+
 
 More Details 
 =============
@@ -72,6 +71,17 @@ Reads in a file from the supplied directory, the default is the same 'hardcoded'
 
 * Returns the header of the result data-frame to give a quick view of whether it is working as expected or not.
 
+Function 3) : 
+-------------------------
+makeCodeBook<-function(ActDir="~/Documents/CQA/gettingCleanData/UCI HAR Dataset")
+
+* Reads in a file fro the supplied directory
+
+* parses the feature labels according to rules derived from the original UCI explanation
+
+* Writes back out an updated Codebook.txt file
+ 
+* This is later processed in a text editor to add extra details.
 
 
 
